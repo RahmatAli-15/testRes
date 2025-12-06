@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import json
 import os
 
+# ---------------------------
+# FastAPI App
+# ---------------------------
 app = FastAPI()
 
 # Allow all origins
@@ -15,36 +18,38 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Persistent disk path on Render
-DATA_DIR = "/data"
-CLICKS_FILE = os.path.join(DATA_DIR, "clicks.json")
-RESUME_FILE = "Resume.pdf"
+# ---------------------------
+# File Paths (Free-tier Safe)
+# ---------------------------
+CLICKS_FILE = "clicks.json"     # saved inside project folder
+RESUME_FILE = "Resume.pdf"      # your resume file
 
-# Ensure persistent data folder exists
-if not os.path.exists(DATA_DIR):
-    os.mkdir(DATA_DIR)
-
-# Ensure click log file exists
+# Ensure clicks.json exists
 if not os.path.exists(CLICKS_FILE):
     with open(CLICKS_FILE, "w") as f:
         json.dump({}, f, indent=4)
 
 
+# ---------------------------
+# Helper Functions
+# ---------------------------
 def load_clicks():
     try:
-        return json.load(open(CLICKS_FILE))
+        return json.load(open(CLICKS_FILE, "r"))
     except:
         return {}
 
 
 def save_clicks(data):
-    json.dump(data, open(CLICKS_FILE, "w"), indent=4)
+    with open(CLICKS_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 
+# ---------------------------
+# Resume Page + Tracking
+# ---------------------------
 @app.get("/resume", response_class=HTMLResponse)
-async def resume_page(request: Request, id: str):
-    """Track resume views + show HTML page"""
-
+async def resume(id: str):
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     data = load_clicks()
@@ -98,12 +103,13 @@ async def resume_page(request: Request, id: str):
     return HTMLResponse(content=html)
 
 
+# ---------------------------
+# Download Resume
+# ---------------------------
 @app.get("/download_resume")
 async def download_resume(id: str):
-    """Serve PDF resume"""
-
     if not os.path.exists(RESUME_FILE):
-        return {"error": "Resume.pdf not found"}
+        return JSONResponse({"error": "Resume.pdf NOT found"}, status_code=404)
 
     return FileResponse(
         RESUME_FILE,
@@ -112,10 +118,11 @@ async def download_resume(id: str):
     )
 
 
+# ---------------------------
+# Stats Endpoint (Dashboard uses this)
+# ---------------------------
 @app.get("/stats")
 async def stats():
-    """Return click tracking stats for dashboard"""
-
     data = load_clicks()
     total_clicks = sum(len(v) for v in data.values())
 
@@ -127,6 +134,12 @@ async def stats():
     }
 
 
+# ---------------------------
+# Home Endpoint
+# ---------------------------
 @app.get("/")
 async def home():
-    return {"status": "online", "message": "Resume Tracker API running on Render!"}
+    return {
+        "status": "online",
+        "message": "Resume Tracker running on Render FREE Tier"
+    }
